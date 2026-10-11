@@ -1,0 +1,22 @@
+{
+  "samples_total": 115601,
+  "positive_rate": 0.018,
+  "horizon_s": 60,
+  "window": 6,
+  "roc_auc": 0.956,
+  "average_precision": 0.541,
+  "roc_auc_baseline_margin_only": 0.956,
+  "roc_auc_baseline_linear_projection": 0.934,
+  "average_precision_baseline_margin_only": 0.538,
+  "average_precision_baseline_linear_projection": 0.359,
+  "at_threshold_medium_0.30": {
+    "precision": 0.529,
+    "recall": 0.583,
+    "f1": 0.555
+  },
+  "at_threshold_high_0.60": {
+    "precision": 0.777,
+    "recall": 0.304,
+    "f1": 0.437
+  }
+}

@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chaîne du Froid · Surveillance Camion Frigorifique</title>
+    <meta name="description"
+        content="Dashboard temps réel de surveillance de la chaîne du froid pour le transport pharmaceutique et alimentaire (2 °C à 8 °C).">
+
+    <!-- Typographies Google Fonts : Space Grotesk, DM Sans, JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400..700&family=Space+Grotesk:wght@500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet 1.9.4 (CDN cdnjs) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+    <style>
+        :root {
+            --bg-page: #F4F6F9;
+            --bg-card: #FFFFFF;
+            --text-navy-primary: #0A192F;
+            --text-navy-secondary: #1E293B;
+            --text-muted: #64748B;
+            --border-card: #E2E8F0;
+
+            --glacier-blue: #00A8E8;
+            --glacier-blue-light: #E0F2FE;
+            --btn-blue: #0284C7;
+            --btn-blue-hover: #0369A1;
+
+            --green-ok: #10B981;
+            --green-ok-text: #059669;
+            --green-ok-bg: #ECFDF5;
+
+            --red-alert: #EF4444;
+            --red-alert-text: #DC2626;
+            --red-alert-bg: #FEF2F2;
+
+            --orange-offline: #F59E0B;
+            --orange-offline-bg: #FFFBEB;
+
+            --font-title: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --shadow-subtle: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            --shadow-card: 0 10px 15px -3px rgba(10, 25, 47, 0.05), 0 4px 6px -4px rgba(10, 25, 47, 0.03);
+            --transition-smooth: all 0.25s ease-in-out;
+        }
+
+        /* Halo rouge discret en cas d'alerte */
+        body.mode-alerte {
+            box-shadow: inset 0 8px 24px -4px rgba(239, 68, 68, 0.6);
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-page);
+            color: var(--text-navy-secondary);
+            font-family: var(--font-body);
+            font-size: 15px;
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            transition: box-shadow 0.3s ease;
+        }
+
+        @media (min-width: 768px) {
+            body {
+                padding: 24px 32px;
+                gap: 20px;
+            }
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--btn-blue);
+            outline-offset: 3px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* ================= 1. EN-TÊTE ================= */
+        .header-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+            box-shadow: var(--shadow-subtle);
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        @media (min-width: 640px) {
+            .header-card {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                padding: 18px 24px;
+            }
+        }
+
+        .brand-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-logo {
+            font-size: 32px;
+            line-height: 1;
+            background: var(--glacier-blue-light);
+            border: 1px solid rgba(0, 168, 232, 0.2);
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .brand-titles h1 {
+            font-family: var(--font-title);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-navy-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-titles p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 500;
+            background: #F1F5F9;
+            color: var(--text-navy-secondary);
+            border: 1px solid var(--border-card);
+            align-self: flex-start;
+        }
+
+        @media (min-width: 640px) {
+            .status-badge {
+                align-self: center;
+            }
+        }
+
+        .status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #94A3B8;
+        }
+
+        .status-badge.online .status-dot {
+            background: var(--green-ok);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+
+        .status-badge.error .status-dot {
+            background: var(--red-alert);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+        }
+
+        /* ================= 2. BANDEAU D'ALERTE ROUGE ================= */
+        .alert-banner {
+            display: none;
+            background-color: var(--red-alert-bg);
+            border: 2px solid var(--red-alert);
+            border-radius: 12px;
+            padding: 14px 18px;
+            color: var(--red-alert-text);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+            animation: pulse-border 2s infinite;
+        }
+
+        .alert-banner.active {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-banner-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .alert-banner-text {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        @keyframes pulse-border {
+
+            0%,
+            100% {
+                border-color: var(--red-alert);
+            }
+
+            50% {
+                border-color: #F87171;
+            }
+        }
+
+        /* ================= GRILLE PRINCIPALE ================= */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        @media (min-width: 840px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+            box-shadow: var(--shadow-subtle);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-family: var(--font-title);
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-navy-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ================= 3. CARTE TEMPÉRATURE ACTUELLE ================= */
+        .temp-display-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .temp-number-row {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .temp-main-value {
+            font-family: var(--font-mono);
+            font-size: 54px;
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: -0.04em;
+            color: var(--text-navy-primary);
+        }
+
+        .temp-unit {
+            font-family: var(--font-mono);
+            font-size: 26px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        /* ===== Carte « Risque de rupture (IA) » ===== */
+        .risk-card {
+            grid-column: 1 / -1;
+        }
+
+        .risk-body {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .risk-score {
+            font-size: 44px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--text-navy-primary);
+            min-width: 110px;
+        }
+
+        .risk-score small {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .risk-meta {
+            flex: 1 1 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .risk-reason {
+            font-size: 14px;
+            color: var(--text-navy-secondary);
+        }
+
+        .risk-bar-track {
+            height: 10px;
+            border-radius: 999px;
+            background: var(--border-card);
+            overflow: hidden;
+        }
+
+        .risk-bar-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: var(--green-ok);
+            transition: width .4s ease, background .4s ease;
+        }
+
+        .risk-bar-fill.medium {
+            background: var(--orange-offline);
+        }
+
+        .risk-bar-fill.high,
+        .risk-bar-fill.breach {
+            background: var(--red-alert);
+        }
+
+        .temp-status-tag.warn {
+            background: var(--orange-offline-bg);
+            color: #B45309;
+        }
+
+        .risk-note {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .temp-status-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            width: fit-content;
+        }
+
+        .temp-status-tag.ok {
+            background: var(--green-ok-bg);
+            color: var(--green-ok-text);
+            border: 1px solid #A7F3D0;
+        }
+
+        .temp-status-tag.alert {
+            background: var(--red-alert-bg);
+            color: var(--red-alert-text);
+            border: 1px solid #FECACA;
+        }
+
+        .temp-status-tag.offline {
+            background: var(--orange-offline-bg);
+            color: #D97706;
+            border: 1px solid #FDE68A;
+        }
+
+        /* Échelle -5 à 20 °C */
+        .gauge-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-top: 6px;
+        }
+
+        .gauge-label-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .gauge-bar-track {
+            position: relative;
+            height: 14px;
+            background: #E2E8F0;
+            border-radius: 7px;
+            overflow: visible;
+        }
+
+        /* Plage conforme 2 à 8 sur -5 à 20 :
+           étendue = 25 °C. 2 °C => (2 - (-5)) / 25 = 7/25 = 28%
+           8 °C => (8 - (-5)) / 25 = 13/25 = 52%
+           largeur = 24%
+        */
+        .gauge-safe-zone {
+            position: absolute;
+            left: 28%;
+            width: 24%;
+            height: 100%;
+            background: #10B981;
+            border-radius: 2px;
+            opacity: 0.85;
+        }
+
+        .gauge-needle {
+            position: absolute;
+            top: -5px;
+            left: 28%;
+            width: 6px;
+            height: 24px;
+            background: var(--glacier-blue);
+            border: 2px solid #FFFFFF;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+            border-radius: 3px;
+            transform: translateX(-50%);
+            transition: left 0.4s ease;
+        }
+
+        .gauge-needle.alert {
+            background: var(--red-alert);
+        }
+
+        .gauge-legend {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .gauge-legend-safe {
+            color: var(--green-ok-text);
+            font-weight: 600;
+        }
+
+        /* ================= 4. CARTE VÉHICULE ================= */
+        .vehicle-metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .metric-box {
+            background: #F8FAFC;
+            border: 1px solid #EDF2F7;
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-family: var(--font-mono);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-navy-primary);
+        }
+
+        .metric-value.highlight-alert {
+            color: var(--red-alert-text);
+        }
+
+        /* ================= 5. CARTE DU TRANSPORT (LEAFLET) ================= */
+        .map-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+            box-shadow: var(--shadow-subtle);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .map-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-action {
+            background-color: var(--btn-blue);
+            color: #FFFFFF;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-action:hover {
+            background-color: var(--btn-blue-hover);
+        }
+
+        #map {
+            width: 100%;
+            height: 360px;
+            border-radius: 12px;
+            border: 1px solid var(--border-card);
+            z-index: 1;
+        }
+
+        /* Styles du marqueur camion Leaflet */
+        .truck-pin {
+            background: #FFFFFF;
+            border: 2px solid var(--glacier-blue);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: var(--transition-smooth);
+        }
+
+        .truck-pin.alert {
+            border-color: var(--red-alert);
+            background: var(--red-alert-bg);
+            animation: pulse-pin 1.5s infinite;
+        }
+
+        @keyframes pulse-pin {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.12);
+            }
+        }
+
+        .map-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            font-size: 12px;
+            color: var(--text-muted);
+            padding-top: 4px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-line {
+            width: 18px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .legend-planned {
+            background: #94A3B8;
+            border-top: 2px dashed #64748B;
+            height: 0;
+        }
+
+        .legend-ok {
+            background: var(--glacier-blue);
+        }
+
+        .legend-bad {
+            background: var(--red-alert);
+        }
+
+        /* ================= 6. COURBE CANVAS ================= */
+        .chart-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+            box-shadow: var(--shadow-subtle);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 240px;
+        }
+
+        #tempCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 8px;
+            cursor: crosshair;
+        }
+
+        .chart-tooltip {
+            position: absolute;
+            display: none;
+            background: rgba(10, 25, 47, 0.92);
+            color: #FFFFFF;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        /* ================= 7. ALERTES ================= */
+        .alerts-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+            box-shadow: var(--shadow-subtle);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .alerts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .alert-entry {
+            background: var(--red-alert-bg);
+            border: 1px solid #FECACA;
+            border-left: 5px solid var(--red-alert);
+            border-radius: 10px;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        @media (min-width: 640px) {
+            .alert-entry {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+
+        .alert-entry-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .alert-entry-title {
+            font-weight: 700;
+            color: var(--red-alert-text);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge-active-alert {
+            background: var(--red-alert);
+            color: #FFFFFF;
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 9999px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .alert-entry-meta {
+            font-size: 13px;
+            color: var(--text-navy-secondary);
+        }
+
+        .alert-entry-extreme {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--red-alert-text);
+            font-size: 15px;
+        }
+
+        .no-alert-box {
+            background: var(--green-ok-bg);
+            border: 1px solid #A7F3D0;
+            border-radius: 10px;
+            padding: 16px;
+            color: var(--green-ok-text);
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ================= 8. TABLEAU DES 20 DERNIÈRES MESURES ================= */
+        .table-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+            box-shadow: var(--shadow-subtle);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+            min-width: 580px;
+        }
+
+        th {
+            background: #F8FAFC;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-card);
+        }
+
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #F1F5F9;
+            color: var(--text-navy-secondary);
+            font-family: var(--font-mono);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: #F8FAFC;
+        }
+
+        .badge-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            font-family: var(--font-body);
+        }
+
+        .badge-status.ok {
+            background: var(--green-ok-bg);
+            color: var(--green-ok-text);
+        }
+
+        .badge-status.alert {
+            background: var(--red-alert-bg);
+            color: var(--red-alert-text);
+        }
+
+        /* Footer */
+        .footer-note {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 8px 0 16px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- 1. EN-TÊTE -->
+        <header class="header-card">
+            <div class="brand-area">
+                <div class="brand-logo" aria-hidden="true">❄️</div>
+                <div class="brand-titles">
+                    <h1>Chaîne du froid</h1>
+                    <p>Camion frigorifique · plage conforme 2 à 8 °C</p>
+                </div>
+            </div>
+            <div id="connStatusBadge" class="status-badge" role="status" aria-live="polite">
+                <span class="status-dot"></span>
+                <span id="connStatusText">Connexion en cours...</span>
+            </div>
+        </header>
+
+        <!-- 2. BANDEAU D'ALERTE ROUGE -->
+        <div id="alertBanner" class="alert-banner" role="alert" aria-live="assertive">
+            <div class="alert-banner-icon" aria-hidden="true">⚠️</div>
+            <div class="alert-banner-text" id="alertBannerText">
+                RUPTURE DE LA CHAÎNE DU FROID : La température actuelle est hors de la plage autorisée [2 °C, 8 °C] !
+            </div>
+        </div>
+
+        <!-- GRILLE DE CARTES STATUT -->
+        <div class="dashboard-grid">
+            <!-- 3. CARTE TEMPÉRATURE ACTUELLE -->
+            <section class="card" aria-labelledby="title-temp-card">
+                <div class="card-header">
+                    <h2 id="title-temp-card" class="card-title">🌡️ Température actuelle</h2>
+                    <span id="tempStatusTag" class="temp-status-tag ok">En attente</span>
+                </div>
+
+                <div class="temp-display-wrap">
+                    <div class="temp-number-row">
+                        <span id="currentTempValue" class="temp-main-value">--.-</span>
+                        <span class="temp-unit">°C</span>
+                    </div>
+                </div>
+
+                <!-- Jauge / Échelle visuelle de -5 à 20 °C -->
+                <div class="gauge-section">
+                    <div class="gauge-label-row">
+                        <span>-5 °C</span>
+                        <span>0 °C</span>
+                        <span style="color: var(--green-ok-text); font-weight: 700;">2 °C</span>
+                        <span style="color: var(--green-ok-text); font-weight: 700;">8 °C</span>
+                        <span>15 °C</span>
+                        <span>20 °C</span>
+                    </div>
+                    <div class="gauge-bar-track">
+                        <!-- Zone 2–8 °C colorée en vert -->
+                        <div class="gauge-safe-zone" title="Plage conforme 2 à 8 °C"></div>
+                        <!-- Aiguille dynamique -->
+                        <div id="gaugeNeedle" class="gauge-needle" style="left: 28%;" title="Valeur actuelle"></div>
+                    </div>
+                    <div class="gauge-legend">
+                        <span>Min : -5 °C</span>
+                        <span class="gauge-legend-safe">Zone conforme : 2 à 8 °C</span>
+                        <span>Max : 20 °C</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. CARTE VÉHICULE -->
+            <section class="card" aria-labelledby="title-veh-card">
+                <div class="card-header">
+                    <h2 id="title-veh-card" class="card-title">🚛 État du véhicule</h2>
+                </div>
+
+                <div class="vehicle-metrics-grid">
+                    <div class="metric-box">
+                        <span class="metric-label">Vitesse actuelle</span>
+                        <span id="vehicleSpeed" class="metric-value">-- km/h</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Ruptures détectées</span>
+                        <span id="alertsCountMetric" class="metric-value">0</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Position GPS (Lat, Lon)</span>
+                        <span id="vehicleCoordinates" class="metric-value" style="font-size: 14px;">--.-----,
+                            --.-----</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Dernière mesure</span>
+                        <span id="lastMeasurementTime" class="metric-value">--:--:--</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4 bis. CARTE RISQUE DE RUPTURE (IA) -->
+            <section class="card risk-card" aria-labelledby="title-risk-card">
+                <div class="card-header">
+                    <h2 id="title-risk-card" class="card-title">🔮 Risque de rupture dans la prochaine minute (IA)</h2>
+                    <span id="riskLevelTag" class="temp-status-tag ok">En attente</span>
+                </div>
+                <div class="risk-body">
+                    <div class="risk-score"><span id="riskPercent">--</span><small>%</small></div>
+                    <div class="risk-meta">
+                        <div class="risk-bar-track">
+                            <div id="riskBarFill" class="risk-bar-fill"></div>
+                        </div>
+                        <span id="riskReason" class="risk-reason">Pas assez de mesures pour estimer le risque.</span>
+                        <span class="risk-note">Régression logistique entraînée sur des données simulées : estimation
+                            indicative, à lire avec la température mesurée.</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 5. CARTE DU TRANSPORT (LEAFLET) -->
+        <section class="map-card" aria-labelledby="title-map-card">
+            <div class="card-header">
+                <h2 id="title-map-card" class="card-title">📍 Suivi cartographique du transport</h2>
+                <div class="map-header-actions">
+                    <button id="btnRecenter" class="btn-action" type="button"
+                        aria-label="Recentrer la carte sur le camion">
+                        🎯 Recentrer
+                    </button>
+                </div>
+            </div>
+
+            <div id="map" role="region" aria-label="Carte interactive du trajet du camion"></div>
+
+            <div class="map-legend">
+                <div class="legend-item">
+                    <div class="legend-line legend-planned"></div>
+                    <span>Trajet prévu (Tunis → Sfax)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line legend-ok"></div>
+                    <span>Trajectoire conforme (2–8 °C)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line legend-bad"></div>
+                    <span>Trajectoire hors plage</span>
+                </div>
+                <div class="legend-item">
+                    <span>🚚 Camion frigorifique</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. COURBE DE TEMPÉRATURE SUR CANVAS -->
+        <section class="chart-card" aria-labelledby="title-chart-card">
+            <div class="card-header">
+                <h2 id="title-chart-card" class="card-title">📈 Historique thermique (Canvas)</h2>
+                <span style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
+                    Zone verte : 2 °C à 8 °C
+                </span>
+            </div>
+
+            <div class="chart-container" id="chartWrapper">
+                <canvas id="tempCanvas"></canvas>
+                <div id="chartTooltip" class="chart-tooltip" role="tooltip"></div>
+            </div>
+        </section>
+
+        <!-- 7. SECTION ALERTES -->
+        <section class="alerts-card" aria-labelledby="title-alerts-card">
+            <div class="card-header">
+                <h2 id="title-alerts-card" class="card-title">⚠️ Journal des alertes (≥ 3 mesures consécutives hors
+                    plage)</h2>
+            </div>
+
+            <div id="alertsContainer" class="alerts-list">
+                <div class="no-alert-box">
+                    <span>✓</span>
+                    <span>Aucune rupture de la chaîne du froid</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. TABLEAU DES 20 DERNIÈRES MESURES -->
+        <section class="table-card" aria-labelledby="title-table-card">
+            <div class="card-header">
+                <h2 id="title-table-card" class="card-title">📋 20 dernières mesures enregistrées</h2>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Heure</th>
+                            <th scope="col">Température</th>
+                            <th scope="col">Position GPS</th>
+                            <th scope="col">Vitesse</th>
+                            <th scope="col">État</th>
+                        </tr>
+                    </thead>
+                    <tbody id="measurementsTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                En attente des données en provenance de Firebase...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer class="footer-note">
+            Chaîne du Froid Intelligente · Simulation Wokwi ESP32 + Firebase Realtime Database REST
+        </footer>
+    </div>
+
+    <!-- SCRIPT APPLICATION DASHBOARD -->
+    <script>
+        (function () {
+            'use strict';
+
+            // ====================================================================
+            // CONSTANTES ET CONFIGURATION
+            // ====================================================================
+            const FIREBASE_BASE_URL = 'https://chaine-du-froid-default-rtdb.europe-west1.firebasedatabase.app';
+            const URL_CURRENT = `${FIREBASE_BASE_URL}/transport/current.json`;
+            const URL_LOG = `${FIREBASE_BASE_URL}/transport/log.json`;
+
+            const TEMP_MIN = 2.0;
+            const TEMP_MAX = 8.0;
+            const GAUGE_MIN = -5.0;
+            const GAUGE_MAX = 20.0;
+            const TIMEOUT_OFFLINE_MS = 30000; // 30 secondes sans mesure => capteur hors ligne
+            const REFRESH_INTERVAL_MS = 5000;
+
+            // Trajet prévu en Tunisie (Tunis → Hammamet → Sousse → Monastir → Sfax → Tunis)
+            const PLANNED_ROUTE_COORDS = [
+                [36.8065, 10.1815], // Tunis
+                [36.4000, 10.6167], // Hammamet
+                [35.8256, 10.6369], // Sousse
+                [35.7643, 10.8113], // Monastir
+                [34.7406, 10.7603], // Sfax
+                [36.8065, 10.1815]  // Retour Tunis
+            ];
+
+            // Éléments du DOM
+            const connStatusBadge = document.getElementById('connStatusBadge');
+            const connStatusText = document.getElementById('connStatusText');
+            const alertBanner = document.getElementById('alertBanner');
+            const alertBannerText = document.getElementById('alertBannerText');
+
+            const currentTempValue = document.getElementById('currentTempValue');
+            const tempStatusTag = document.getElementById('tempStatusTag');
+            const gaugeNeedle = document.getElementById('gaugeNeedle');
+
+            const vehicleSpeed = document.getElementById('vehicleSpeed');
+            const alertsCountMetric = document.getElementById('alertsCountMetric');
+            const vehicleCoordinates = document.getElementById('vehicleCoordinates');
+            const lastMeasurementTime = document.getElementById('lastMeasurementTime');
+
+            const btnRecenter = document.getElementById('btnRecenter');
+            const alertsContainer = document.getElementById('alertsContainer');
+            const measurementsTableBody = document.getElementById('measurementsTableBody');
+
+            const tempCanvas = document.getElementById('tempCanvas');
+            const chartWrapper = document.getElementById('chartWrapper');
+            const chartTooltip = document.getElementById('chartTooltip');
+
+            // État de l'application (en mémoire, aucun localStorage)
+            let currentData = null;
+            let logHistory = []; // Tableau d'objets ordonnés par ts croissant
+            let detectedAlerts = [];
+            let leafletMap = null;
+            let truckMarker = null;
+            let routeSegmentsLayerGroup = null;
+
+            // ====================================================================
+            // INITIALISATION DE LA CARTE LEAFLET
+            // ====================================================================
+            function initLeafletMap() {
+                if (typeof L === 'undefined') {
+                    console.warn('[Leaflet] L non encore disponible, nouvelle tentative dans 300 ms...');
+                    setTimeout(initLeafletMap, 300);
+                    return;
+                }
+
+                // Centrage initial sur la Tunisie (Tunis - Sousse)
+                leafletMap = L.map('map', {
+                    zoomControl: true,
+                    attributionControl: true
+                }).setView([35.85, 10.60], 8);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 18,
+                    attribution: '&copy; OpenStreetMap contributeurs'
+                }).addTo(leafletMap);
+
+                // Trajet prévu en pointillés gris
+                L.polyline(PLANNED_ROUTE_COORDS, {
+                    color: '#94A3B8',
+                    dashArray: '6, 8',
+                    weight: 3,
+                    opacity: 0.85
+                }).addTo(leafletMap);
+
+                // Groupe de couches pour les segments réels
+                routeSegmentsLayerGroup = L.layerGroup().addTo(leafletMap);
+
+                // Marqueur Camion avec DivIcon personnalisé
+                const truckIcon = L.divIcon({
+                    className: 'custom-truck-divicon',
+                    html: `<div class="truck-pin" id="truckPinElement">🚚</div>`,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18]
+                });
+
+                truckMarker = L.marker([36.8065, 10.1815], { icon: truckIcon }).addTo(leafletMap);
+
+                // Gestion du bouton Recentrer
+                btnRecenter.addEventListener('click', function () {
+                    if (currentData && typeof currentData.lat === 'number' && typeof currentData.lon === 'number') {
+                        leafletMap.setView([currentData.lat, currentData.lon], 11, { animate: true });
+                    } else {
+                        leafletMap.setView([35.85, 10.60], 8, { animate: true });
+                    }
+                });
+            }
+
+            // ====================================================================
+            // MISE À JOUR DE LA CARTE LEAFLET
+            // ====================================================================
+            function updateLeafletMap() {
+                if (!leafletMap || !truckMarker) return;
+
+                // 1. Position du marqueur camion
+                if (currentData && typeof currentData.lat === 'number' && typeof currentData.lon === 'number') {
+                    const newLatLng = [currentData.lat, currentData.lon];
+                    truckMarker.setLatLng(newLatLng);
+
+                    const truckPinEl = document.getElementById('truckPinElement');
+                    const isOutOfRange = isPointOutOfRange(currentData);
+                    if (truckPinEl) {
+                        if (isOutOfRange) {
+                            truckPinEl.classList.add('alert');
+                        } else {
+                            truckPinEl.classList.remove('alert');
+                        }
+                    }
+                }
+
+                // 2. Trajectoire réelle segmentée (bleu glacial ou rouge si hors plage)
+                if (routeSegmentsLayerGroup) {
+                    routeSegmentsLayerGroup.clearLayers();
+
+                    if (logHistory.length >= 2) {
+                        for (let i = 1; i < logHistory.length; i++) {
+                            const pPrev = logHistory[i - 1];
+                            const pCurr = logHistory[i];
+
+                            if (typeof pPrev.lat === 'number' && typeof pPrev.lon === 'number' &&
+                                typeof pCurr.lat === 'number' && typeof pCurr.lon === 'number') {
+
+                                const segmentBad = isPointOutOfRange(pCurr) || isPointOutOfRange(pPrev);
+                                const segmentColor = segmentBad ? '#EF4444' : '#00A8E8';
+
+                                L.polyline([[pPrev.lat, pPrev.lon], [pCurr.lat, pCurr.lon]], {
+                                    color: segmentColor,
+                                    weight: 4,
+                                    opacity: 0.95
+                                }).addTo(routeSegmentsLayerGroup);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ====================================================================
+            // UTILITAIRES DE CONFORMITÉ ET D'HORODATAGE
+            // ====================================================================
+            function isPointOutOfRange(pt) {
+                if (!pt) return false;
+                if (typeof pt.out_of_range === 'boolean') {
+                    return pt.out_of_range;
+                }
+                if (typeof pt.temperature === 'number') {
+                    return pt.temperature < TEMP_MIN || pt.temperature > TEMP_MAX;
+                }
+                return false;
+            }
+
+            function formatHour(timestamp) {
+                if (!timestamp) return '--:--:--';
+                const d = new Date(timestamp);
+                if (isNaN(d.getTime())) return '--:--:--';
+                return d.toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+
+            function formatDuration(seconds) {
+                if (seconds < 60) return `${seconds} s`;
+                const min = Math.floor(seconds / 60);
+                const sec = seconds % 60;
+                return sec > 0 ? `${min} min ${sec} s` : `${min} min`;
+            }
+
+            // ====================================================================
+            // GESTION DU RECOUVREMENT DES ALERTES (≥ 3 MESURES CONSÉCUTIVES)
+            // ====================================================================
+            function detectAlerts(points) {
+                const alerts = [];
+                let streak = [];
+
+                for (let i = 0; i < points.length; i++) {
+                    const pt = points[i];
+                    if (isPointOutOfRange(pt)) {
+                        streak.push(pt);
+                    } else {
+                        if (streak.length >= 3) {
+                            alerts.push(createAlertRecord(streak, false));
+                        }
+                        streak = [];
+                    }
+                }
+
+                if (streak.length >= 3) {
+                    // Alerte active jusqu'à la dernière mesure
+                    alerts.push(createAlertRecord(streak, true));
+                }
+
+                return alerts;
+            }
+
+            function createAlertRecord(streak, isActive) {
+                const first = streak[0];
+                const last = streak[streak.length - 1];
+                const temps = streak.map(p => p.temperature);
+
+                const countHot = streak.filter(p => p.temperature > TEMP_MAX).length;
+                const countCold = streak.filter(p => p.temperature < TEMP_MIN).length;
+                const isHot = countHot >= countCold;
+
+                const extremeVal = isHot ? Math.max(...temps) : Math.min(...temps);
+                const label = isHot ? 'Trop chaud : température au-dessus de 8 °C' : 'Trop froid : température en-dessous de 2 °C';
+
+                let durationSec = 0;
+                if (first.ts && last.ts && last.ts >= first.ts) {
+                    durationSec = Math.round((last.ts - first.ts) / 1000);
+                }
+                if (durationSec === 0) {
+                    durationSec = (streak.length - 1) * 5;
+                }
+
+                return {
+                    isHot: isHot,
+                    label: label,
+                    extreme: extremeVal,
+                    startTime: formatHour(first.ts),
+                    endTime: formatHour(last.ts),
+                    durationText: formatDuration(durationSec),
+                    isActive: isActive,
+                    count: streak.length
+                };
+            }
+
+            // ====================================================================
+            // RENDU DE L'INTERFACE UTILISATEUR
+            // ====================================================================
+            // ====================================================================
+            // RISQUE DE RUPTURE (IA) : mêmes calculs que froid_api/app/risk.py
+            // Coefficients générés par froid_api/ml/train_risk_model.py
+            // ====================================================================
+            const RISK_MODEL = { "window": 6, "horizon_s": 60, "features": ["margin", "approach", "std", "margin_proj", "log_ttb"], "mean": [2.0143553113983907, 0.058228395888543345, 0.19627995640290258, 1.9094756582644037, 6.08958279759382], "scale": [0.6461775268407876, 0.43105000599335586, 0.11748645866284355, 0.7666892849122349, 0.6376037434238782], "coef": [-1.9484280707939767, -0.5338072538886046, 0.30349771270737613, -1.0791913042481929, -0.06452375339771801], "intercept": -7.8231817573143, "thresholds": { "medium": 0.3, "high": 0.6 } };
+            const riskLevelTag = document.getElementById('riskLevelTag');
+            const riskPercent = document.getElementById('riskPercent');
+            const riskBarFill = document.getElementById('riskBarFill');
+            const riskReason = document.getElementById('riskReason');
+
+            function computeRiskFeatures(points) {
+                const pts = points
+                    .filter(p => typeof p.temperature === 'number' && p.ts)
+                    .sort((a, b) => a.ts - b.ts)
+                    .slice(-RISK_MODEL.window);
+                if (pts.length < 3) return null;
+                const t0 = pts[pts.length - 1].ts;
+                const xs = pts.map(p => (p.ts - t0) / 60000);
+                const ys = pts.map(p => p.temperature);
+                const n = pts.length;
+                const mx = xs.reduce((a, b) => a + b, 0) / n;
+                const my = ys.reduce((a, b) => a + b, 0) / n;
+                const varX = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+                if (varX < 1e-12) return null;
+                const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / varX;
+                const std = Math.sqrt(ys.reduce((a, y) => a + (y - my) ** 2, 0) / n);
+                const temp = ys[n - 1];
+                const projected = temp + slope * (RISK_MODEL.horizon_s / 60);
+                const margin = Math.min(TEMP_MAX - temp, temp - TEMP_MIN);
+                const marginProj = Math.min(TEMP_MAX - projected, projected - TEMP_MIN);
+                const approach = (TEMP_MAX - temp) <= (temp - TEMP_MIN) ? slope : -slope;
+                const ttb = approach <= 1e-6 ? 600 : Math.min(600, Math.max(margin, 0) / approach * 60);
+                return { temp, slope, std, margin, margin_proj: marginProj, approach, log_ttb: Math.log1p(ttb) };
+            }
+
+            function predictRisk(points) {
+                const f = computeRiskFeatures(points);
+                if (!f) return { level: 'unknown', probability: null, reason: 'Pas assez de mesures (3 minimum) pour estimer le risque.' };
+                if (f.margin < 0) return { level: 'breach', probability: 1, reason: 'La température est déjà hors de la plage autorisée.' };
+                let z = RISK_MODEL.intercept;
+                RISK_MODEL.features.forEach((name, i) => {
+                    z += RISK_MODEL.coef[i] * (f[name] - RISK_MODEL.mean[i]) / RISK_MODEL.scale[i];
+                });
+                const proba = 1 / (1 + Math.exp(-z));
+                let eta = null;
+                if (f.slope > 1e-6) eta = (TEMP_MAX - f.temp) / f.slope * 60;
+                else if (f.slope < -1e-6) eta = (f.temp - TEMP_MIN) / -f.slope * 60;
+                if (eta !== null && eta > 3600) eta = null;
+                const th = RISK_MODEL.thresholds;
+                const level = proba >= th.high ? 'high' : proba >= th.medium ? 'medium' : 'low';
+                let reason = 'Température stable et loin des limites.';
+                if (level !== 'low') {
+                    const bound = f.slope > 0 ? '8 °C' : '2 °C';
+                    const etaTxt = eta !== null ? ` (environ ${Math.round(eta)} s)` : '';
+                    reason = `Tendance de ${f.slope >= 0 ? '+' : ''}${f.slope.toFixed(2)} °C/min vers ${bound}${etaTxt}.`;
+                }
+                return { level, probability: proba, reason };
+            }
+
+            function renderRisk(isOffline) {
+                const r = isOffline
+                    ? { level: 'unknown', probability: null, reason: 'Capteur hors ligne : aucune mesure récente.' }
+                    : predictRisk(logHistory);
+                const labels = { unknown: 'En attente', low: 'Risque faible', medium: 'Risque modéré', high: 'Risque élevé', breach: 'Rupture en cours' };
+                const classes = { unknown: 'offline', low: 'ok', medium: 'warn', high: 'alert', breach: 'alert' };
+                riskLevelTag.className = 'temp-status-tag ' + classes[r.level];
+                riskLevelTag.textContent = labels[r.level];
+                const pct = r.probability === null ? null : Math.round(r.probability * 100);
+                riskPercent.textContent = pct === null ? '--' : String(pct);
+                riskBarFill.style.width = (pct === null ? 0 : pct) + '%';
+                riskBarFill.className = 'risk-bar-fill ' + (r.level === 'medium' || r.level === 'high' || r.level === 'breach' ? r.level : '');
+                riskReason.textContent = r.reason;
+            }
+
+            function renderUI() {
+                if (!currentData) {
+                    return;
+                }
+
+                const temp = typeof currentData.temperature === 'number' ? currentData.temperature : null;
+                const ts = currentData.ts || Date.now();
+                const now = Date.now();
+                const isOffline = (now - ts) > TIMEOUT_OFFLINE_MS;
+                const outOfRange = isPointOutOfRange(currentData);
+
+                // 1. Halo rouge et bandeau d'alerte
+                if (outOfRange) {
+                    document.body.classList.add('mode-alerte');
+                    alertBanner.classList.add('active');
+                    if (temp !== null) {
+                        alertBannerText.textContent = `RUPTURE DE LA CHAÎNE DU FROID : Température mesurée à ${temp.toFixed(2)} °C (plage autorisée [2,0 °C - 8,0 °C]) !`;
+                    }
+                } else {
+                    document.body.classList.remove('mode-alerte');
+                    alertBanner.classList.remove('active');
+                }
+
+                // 2. Chiffre et état Température actuelle
+                if (temp !== null) {
+                    currentTempValue.textContent = temp.toFixed(2);
+
+                    if (isOffline) {
+                        tempStatusTag.className = 'temp-status-tag offline';
+                        tempStatusTag.textContent = 'Capteur hors ligne ?';
+                    } else if (temp > TEMP_MAX) {
+                        tempStatusTag.className = 'temp-status-tag alert';
+                        tempStatusTag.textContent = 'Trop chaud : hors plage';
+                    } else if (temp < TEMP_MIN) {
+                        tempStatusTag.className = 'temp-status-tag alert';
+                        tempStatusTag.textContent = 'Trop froid : hors plage';
+                    } else {
+                        tempStatusTag.className = 'temp-status-tag ok';
+                        tempStatusTag.textContent = 'Conforme';
+                    }
+
+                    // Jauge (-5 °C à 20 °C)
+                    let pct = ((temp - GAUGE_MIN) / (GAUGE_MAX - GAUGE_MIN)) * 100;
+                    pct = Math.max(0, Math.min(100, pct));
+                    gaugeNeedle.style.left = `${pct.toFixed(1)}%`;
+                    if (outOfRange) {
+                        gaugeNeedle.classList.add('alert');
+                    } else {
+                        gaugeNeedle.classList.remove('alert');
+                    }
+                }
+
+                // 3. Carte Véhicule
+                if (typeof currentData.speed === 'number') {
+                    vehicleSpeed.textContent = `${currentData.speed} km/h`;
+                }
+                if (typeof currentData.lat === 'number' && typeof currentData.lon === 'number') {
+                    vehicleCoordinates.textContent = `${currentData.lat.toFixed(5)}, ${currentData.lon.toFixed(5)}`;
+                }
+                lastMeasurementTime.textContent = formatHour(currentData.ts);
+                alertsCountMetric.textContent = detectedAlerts.length;
+                if (detectedAlerts.length > 0) {
+                    alertsCountMetric.classList.add('highlight-alert');
+                } else {
+                    alertsCountMetric.classList.remove('highlight-alert');
+                }
+
+                // 4. Carte Leaflet
+                updateLeafletMap();
+
+                // 5. Courbe Canvas
+                drawCanvasChart();
+
+                // 6. Section Alertes
+                renderAlertsList();
+
+                // 7. Tableau des 20 dernières mesures
+                renderMeasurementsTable();
+
+                // 8. Risque de rupture (IA)
+                renderRisk(isOffline);
+            }
+
+            function renderAlertsList() {
+                if (!detectedAlerts || detectedAlerts.length === 0) {
+                    alertsContainer.innerHTML = `
+                    <div class="no-alert-box">
+                        <span>✓</span>
+                        <span>Aucune rupture de la chaîne du froid</span>
+                    </div>
+                `;
+                    return;
+                }
+
+                let html = '';
+                // Les alertes les plus récentes en haut
+                for (let i = detectedAlerts.length - 1; i >= 0; i--) {
+                    const alt = detectedAlerts[i];
+                    html += `
+                    <div class="alert-entry">
+                        <div class="alert-entry-left">
+                            <div class="alert-entry-title">
+                                <span>⚠️ ${alt.label}</span>
+                                ${alt.isActive ? '<span class="badge-active-alert">⚠ En cours</span>' : ''}
+                            </div>
+                            <div class="alert-entry-meta">
+                                Début : <strong>${alt.startTime}</strong> · Fin : <strong>${alt.endTime}</strong> · Durée : <strong>${alt.durationText}</strong> (${alt.count} mesures)
+                            </div>
+                        </div>
+                        <div class="alert-entry-extreme">
+                            Extrême : ${alt.extreme.toFixed(2)} °C
+                        </div>
+                    </div>
+                `;
+                }
+                alertsContainer.innerHTML = html;
+            }
+
+            function renderMeasurementsTable() {
+                // Prendre les 20 plus récentes (du plus récent au plus ancien)
+                const recent = [...logHistory].reverse().slice(0, 20);
+
+                if (recent.length === 0) {
+                    measurementsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                            Aucune mesure enregistrée dans l'historique pour le moment.
+                        </td>
+                    </tr>
+                `;
+                    return;
+                }
+
+                let html = '';
+                recent.forEach(row => {
+                    const isBad = isPointOutOfRange(row);
+                    const tempVal = typeof row.temperature === 'number' ? `${row.temperature.toFixed(2)} °C` : '--';
+                    const coordsVal = (typeof row.lat === 'number' && typeof row.lon === 'number')
+                        ? `${row.lat.toFixed(5)}, ${row.lon.toFixed(5)}`
+                        : '--';
+                    const speedVal = typeof row.speed === 'number' ? `${row.speed} km/h` : '--';
+
+                    html += `
+                    <tr>
+                        <td>${formatHour(row.ts)}</td>
+                        <td style="font-weight: 700; color: ${isBad ? 'var(--red-alert-text)' : 'var(--text-navy-primary)'};">${tempVal}</td>
+                        <td>${coordsVal}</td>
+                        <td>${speedVal}</td>
+                        <td>
+                            <span class="badge-status ${isBad ? 'alert' : 'ok'}">
+                                ${isBad ? 'Hors plage' : 'Conforme'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+                });
+
+                measurementsTableBody.innerHTML = html;
+            }
+
+            // ====================================================================
+            // 6. COURBE DE TEMPÉRATURE SUR CANVAS PUR
+            // ====================================================================
+            function drawCanvasChart() {
+                if (!tempCanvas) return;
+                const ctx = tempCanvas.getContext('2d');
+                const dpr = window.devicePixelRatio || 1;
+
+                const width = chartWrapper.clientWidth;
+                const height = chartWrapper.clientHeight;
+
+                if (tempCanvas.width !== width * dpr || tempCanvas.height !== height * dpr) {
+                    tempCanvas.width = width * dpr;
+                    tempCanvas.height = height * dpr;
+                }
+
+                ctx.save();
+                ctx.scale(dpr, dpr);
+                ctx.clearRect(0, 0, width, height);
+
+                const paddingLeft = 45;
+                const paddingRight = 20;
+                const paddingTop = 20;
+                const paddingBottom = 30;
+                const plotW = width - paddingLeft - paddingRight;
+                const plotH = height - paddingTop - paddingBottom;
+
+                const yMin = -5;
+                const yMax = 20;
+
+                function getY(val) {
+                    const ratio = (val - yMin) / (yMax - yMin);
+                    return paddingTop + plotH * (1 - ratio);
+                }
+
+                // 1. Zone verte conforme (2 °C à 8 °C)
+                const yTopGreen = getY(TEMP_MAX);
+                const yBottomGreen = getY(TEMP_MIN);
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+                ctx.fillRect(paddingLeft, yTopGreen, plotW, yBottomGreen - yTopGreen);
+
+                // Lignes directrices de la plage conforme
+                ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+
+                ctx.beginPath();
+                ctx.moveTo(paddingLeft, yTopGreen);
+                ctx.lineTo(paddingLeft + plotW, yTopGreen);
+                ctx.moveTo(paddingLeft, yBottomGreen);
+                ctx.lineTo(paddingLeft + plotW, yBottomGreen);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 2. Grille et labels de l'axe Y
+                const gridValues = [-5, 0, 2, 8, 15, 20];
+                ctx.font = '10px "JetBrains Mono", monospace';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+
+                gridValues.forEach(val => {
+                    const yPos = getY(val);
+                    ctx.strokeStyle = (val === 2 || val === 8) ? 'rgba(16, 185, 129, 0.3)' : '#E2E8F0';
+                    ctx.lineWidth = (val === 0) ? 1.5 : 1;
+                    ctx.beginPath();
+                    ctx.moveTo(paddingLeft, yPos);
+                    ctx.lineTo(paddingLeft + plotW, yPos);
+                    ctx.stroke();
+
+                    if (val === 2 || val === 8) {
+                        ctx.fillStyle = '#059669';
+                        ctx.font = 'bold 10px "JetBrains Mono", monospace';
+                    } else {
+                        ctx.fillStyle = '#94A3B8';
+                        ctx.font = '10px "JetBrains Mono", monospace';
+                    }
+                    ctx.fillText(`${val}°`, paddingLeft - 8, yPos);
+                });
+
+                // 3. Tracé des points historiques
+                if (logHistory.length === 0) {
+                    ctx.fillStyle = '#94A3B8';
+                    ctx.textAlign = 'center';
+                    ctx.font = '13px "DM Sans", sans-serif';
+                    ctx.fillText('En attente des données de mesures Firebase...', paddingLeft + plotW / 2, paddingTop + plotH / 2);
+                    ctx.restore();
+                    return;
+                }
+
+                const points = logHistory.map((item, idx) => {
+                    const x = paddingLeft + (logHistory.length === 1 ? plotW / 2 : (idx / (logHistory.length - 1)) * plotW);
+                    const y = getY(item.temperature);
+                    return { x, y, data: item };
+                });
+
+                // Ligne bleue continue
+                ctx.beginPath();
+                ctx.strokeStyle = '#00A8E8';
+                ctx.lineWidth = 2.5;
+                points.forEach((pt, i) => {
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                });
+                ctx.stroke();
+
+                // Points rouges (hors plage) et bleus (conformes)
+                points.forEach(pt => {
+                    const isBad = isPointOutOfRange(pt.data);
+                    ctx.beginPath();
+                    if (isBad) {
+                        ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+                        ctx.fillStyle = '#EF4444';
+                        ctx.fill();
+                        ctx.lineWidth = 2;
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.stroke();
+                    } else {
+                        ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+                        ctx.fillStyle = '#00A8E8';
+                        ctx.fill();
+                    }
+                });
+
+                // Axe X : premier et dernier point
+                ctx.fillStyle = '#94A3B8';
+                ctx.font = '10px "JetBrains Mono", monospace';
+                ctx.textBaseline = 'top';
+
+                if (points.length > 0) {
+                    ctx.textAlign = 'left';
+                    ctx.fillText(formatHour(points[0].data.ts), paddingLeft, paddingTop + plotH + 8);
+                    if (points.length > 1) {
+                        ctx.textAlign = 'right';
+                        ctx.fillText(formatHour(points[points.length - 1].data.ts), paddingLeft + plotW, paddingTop + plotH + 8);
+                    }
+                }
+
+                ctx.restore();
+
+                // Stocker pour le tooltip interactif
+                tempCanvas._chartPoints = points;
+            }
+
+            // Tooltip interactif Canvas au survol
+            tempCanvas.addEventListener('mousemove', function (e) {
+                const points = tempCanvas._chartPoints;
+                if (!points || points.length === 0) return;
+
+                const rect = tempCanvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                let closest = null;
+                let minDist = Infinity;
+
+                for (let pt of points) {
+                    const dist = Math.hypot(pt.x - mouseX, pt.y - mouseY);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closest = pt;
+                    }
+                }
+
+                if (closest && minDist < 35) {
+                    const isBad = isPointOutOfRange(closest.data);
+                    chartTooltip.style.display = 'block';
+                    chartTooltip.style.left = `${Math.min(rect.width - 140, Math.max(10, closest.x - 60))}px`;
+                    chartTooltip.style.top = `${Math.max(10, closest.y - 48)}px`;
+                    chartTooltip.innerHTML = `
+                    <div><strong>${formatHour(closest.data.ts)}</strong> : ${closest.data.temperature.toFixed(2)} °C</div>
+                    <div style="color: ${isBad ? '#EF4444' : '#10B981'}; font-weight: 600;">
+                        ${isBad ? '⚠️ Hors plage' : '✓ Conforme'}
+                    </div>
+                `;
+                } else {
+                    chartTooltip.style.display = 'none';
+                }
+            });
+
+            tempCanvas.addEventListener('mouseleave', function () {
+                chartTooltip.style.display = 'none';
+            });
+
+            // Gestion du redimensionnement de la fenêtre
+            window.addEventListener('resize', function () {
+                drawCanvasChart();
+                if (leafletMap) {
+                    leafletMap.invalidateSize();
+                }
+            });
+
+            // ====================================================================
+            // SYNCHRONISATION FIREBASE REST
+            // ====================================================================
+            async function fetchFirebaseData() {
+                try {
+                    // 1. Récupération de /transport/current.json
+                    const resCurrent = await fetch(URL_CURRENT, { cache: 'no-store' });
+                    if (!resCurrent.ok) {
+                        throw new Error(`HTTP ${resCurrent.status} sur current.json`);
+                    }
+                    const currentJson = await resCurrent.json();
+
+                    // 2. Récupération de /transport/log.json
+                    const resLog = await fetch(URL_LOG, { cache: 'no-store' });
+                    if (!resLog.ok) {
+                        throw new Error(`HTTP ${resLog.status} sur log.json`);
+                    }
+                    const logJson = await resLog.json();
+
+                    // Traitement de l'historique (tableau ou objet clé-valeur)
+                    let parsedLogs = [];
+                    if (logJson) {
+                        if (Array.isArray(logJson)) {
+                            parsedLogs = logJson.filter(item => item !== null && typeof item === 'object');
+                        } else if (typeof logJson === 'object') {
+                            parsedLogs = Object.values(logJson).filter(item => item !== null && typeof item === 'object');
+                        }
+                    }
+
+                    // Filtrer les entrées sans température
+                    parsedLogs = parsedLogs.filter(p => typeof p.temperature === 'number');
+
+                    // Trier par ts croissant
+                    parsedLogs.sort((a, b) => {
+                        const tsA = a.ts || 0;
+                        const tsB = b.ts || 0;
+                        return tsA - tsB;
+                    });
+
+                    // Si currentJson est valide, l'ajouter s'il n'est pas déjà dans log
+                    if (currentJson && typeof currentJson.temperature === 'number') {
+                        currentData = currentJson;
+                    } else if (parsedLogs.length > 0) {
+                        currentData = parsedLogs[parsedLogs.length - 1];
+                    }
+
+                    logHistory = parsedLogs;
+
+                    // Calculer les alertes
+                    detectedAlerts = detectAlerts(logHistory);
+
+                    // Mise à jour de l'état de connexion
+                    connStatusBadge.className = 'status-badge online';
+                    connStatusText.textContent = `En ligne · ${formatHour(Date.now())}`;
+
+                    // Rendu
+                    renderUI();
+
+                } catch (err) {
+                    console.error('[Dashboard] Erreur lors de la lecture de Firebase :', err);
+                    connStatusBadge.className = 'status-badge error';
+                    connStatusText.textContent = 'Lecture impossible';
+                }
+            }
+
+            // ====================================================================
+            // DÉMARRAGE DE L'APPLICATION
+            // ====================================================================
+            window.addEventListener('DOMContentLoaded', function () {
+                initLeafletMap();
+                fetchFirebaseData();
+                setInterval(fetchFirebaseData, REFRESH_INTERVAL_MS);
+            });
+
+        })();
+    </script>
+</body>
+
+</html>

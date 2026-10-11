@@ -1,0 +1,17 @@
+# Secrets et configuration locale
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Éditeur
+.vscode/
+.pio/
+
+# Fichiers téléchargés ou générés (ne pas versionner)
+typings/
+*.bin

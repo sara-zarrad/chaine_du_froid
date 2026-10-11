@@ -1,0 +1,40 @@
+# Lance MongoDB + l'API :  docker compose up -d --build
+# L'API est ensuite sur http://localhost:8000/docs
+services:
+  mongodb:
+    image: mongo:7
+    container_name: froid_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build: .
+    container_name: froid_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Dans Docker, MongoDB s'appelle « mongodb » (nom du service), pas « localhost »
+      MONGO_URL: mongodb://mongodb:27017
+      MONGO_DB: ${MONGO_DB:-chaine_froid}
+      FIREBASE_URL: ${FIREBASE_URL:-https://chaine-du-froid-default-rtdb.europe-west1.firebasedatabase.app}
+      TEMP_MIN: ${TEMP_MIN:-2.0}
+      TEMP_MAX: ${TEMP_MAX:-8.0}
+      ALERT_MIN_READINGS: ${ALERT_MIN_READINGS:-3}
+      POLL_SECONDS: ${POLL_SECONDS:-2.0}
+      STALE_SECONDS: ${STALE_SECONDS:-30.0}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  mongo_data:
